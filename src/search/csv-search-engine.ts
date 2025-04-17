@@ -3,13 +3,15 @@
  * Main implementation for the search engine that returns CSV data
  */
 
-import { CSVOptions, CSVResult, ProcessedQuery, SearchResult } from '../types';
+import { CSVOptions, CSVResult, ProcessedQuery, SearchResult, ExtractionField, ExtractedData } from '../types';
 import { stringify } from 'csv-stringify/sync';
 import { QueryProcessor } from '../query/query-processor';
 import { SearchEngine } from './search-engine';
+import { DataExtractor } from '../extractor/data-extractor';
 
 export class CSVSearchEngine {
   private searchEngine: SearchEngine;
+  private dataExtractor: DataExtractor;
 
   constructor(private options: {
     geminiApiKey?: string;
@@ -25,6 +27,15 @@ export class CSVSearchEngine {
       processorOptions: options.processorOptions,
       maxResults: 20, // We'll get more results than needed for better data extraction
       useBM25: true
+    });
+
+    // Initialize the Data Extractor
+    this.dataExtractor = new DataExtractor({
+      useFuzzyMatching: true,
+      confidenceThreshold: 0.5,
+      includeSource: true,
+      includeConfidence: false,
+      ...options.extractionOptions
     });
   }
 
@@ -44,8 +55,18 @@ export class CSVSearchEngine {
 
       console.log(`Found ${searchResults.length} results`);
 
-      // Extract data from search results based on headers
-      const extractedData = this.extractDataFromResults(searchResults, options.headers);
+      // Convert headers to extraction fields
+      const extractionFields = this.createExtractionFields(options.headers, options.headerDescriptions);
+
+      // Use the data extractor to extract structured data
+      console.log('Extracting structured data...');
+      const extractedData = await this.dataExtractor.extractData(
+        searchResults,
+        extractionFields,
+        query
+      );
+
+      console.log(`Extracted data from ${extractedData.length} results`);
 
       // Generate CSV
       const csv = this.generateCSV(extractedData, options);
@@ -90,8 +111,18 @@ export class CSVSearchEngine {
 
       console.log(`Found ${searchResults.length} results from deep search`);
 
-      // Extract data from search results based on headers
-      const extractedData = this.extractDataFromResults(searchResults, options.headers);
+      // Convert headers to extraction fields
+      const extractionFields = this.createExtractionFields(options.headers, options.headerDescriptions);
+
+      // Use the data extractor to extract structured data
+      console.log('Extracting structured data from deep search results...');
+      const extractedData = await this.dataExtractor.extractData(
+        searchResults,
+        extractionFields,
+        query
+      );
+
+      console.log(`Extracted data from ${extractedData.length} deep search results`);
 
       // Generate CSV
       const csv = this.generateCSV(extractedData, options);
@@ -120,262 +151,76 @@ export class CSVSearchEngine {
   }
 
   /**
-   * Extract structured data from search results based on headers
-   * @param results Search results
+   * Create extraction fields from headers
    * @param headers CSV headers
-   * @returns Extracted data
+   * @param headerDescriptions Optional descriptions for headers
+   * @returns Array of extraction fields
    */
-  private extractDataFromResults(results: SearchResult[], headers: string[]): Record<string, any>[] {
-    // This is a placeholder implementation
-    // In a real implementation, this would use NLP and pattern matching to extract data
-    return results.map(result => {
-      const data: Record<string, any> = {
-        _source: result.url,
-        _title: result.title
+  private createExtractionFields(headers: string[], headerDescriptions?: Record<string, string>): ExtractionField[] {
+    return headers.map(header => {
+      const field: ExtractionField = {
+        name: header,
+        description: headerDescriptions?.[header] || `Extract ${header}`
       };
 
-      // Extract data for each header
-      for (const header of headers) {
-        // For now, use a simple approach based on the header name
-        switch (header.toLowerCase()) {
-          case 'name':
-          case 'startup name':
-          case 'company':
-          case 'startup':
-            // Try to extract a company name from the title or snippet
-            data[header] = this.extractCompanyName(result.title, result.snippet);
-            break;
-
-          case 'founder':
-          case 'ceo':
-          case 'owner':
-            // Try to extract a person name from the snippet
-            data[header] = this.extractPersonName(result.snippet);
-            break;
-
-          case 'funding':
-          case 'investment':
-          case 'funding amount':
-            // Try to extract a funding amount from the snippet
-            data[header] = this.extractFundingAmount(result.snippet);
-            break;
-
-          case 'stage':
-          case 'funding stage':
-            // Try to extract a funding stage from the snippet
-            data[header] = this.extractFundingStage(result.snippet);
-            break;
-
-          case 'location':
-          case 'headquarters':
-            // Try to extract a location from the snippet
-            data[header] = this.extractLocation(result.snippet);
-            break;
-
-          case 'industry':
-          case 'sector':
-            // Try to extract an industry from the snippet
-            data[header] = this.extractIndustry(result.snippet);
-            break;
-
-          case 'founded':
-          case 'year founded':
-          case 'established':
-            // Try to extract a year from the snippet
-            data[header] = this.extractYear(result.snippet);
-            break;
-
-          case 'employees':
-          case 'team size':
-            // Try to extract a number from the snippet
-            data[header] = this.extractEmployeeCount(result.snippet);
-            break;
-
-          case 'description':
-          case 'about':
-            // Use the snippet as the description
-            data[header] = result.snippet;
-            break;
-
-          default:
-            // For unknown headers, use a generic approach
-            data[header] = this.extractGenericData(header, result.snippet);
-        }
+      // Determine field type based on header name
+      if (this.isMonetaryHeader(header)) {
+        field.type = 'number';
+      } else if (this.isDateHeader(header)) {
+        field.type = 'date';
+      } else if (this.isNumberHeader(header)) {
+        field.type = 'number';
+      } else {
+        field.type = 'string';
       }
 
-      return data;
+      return field;
     });
   }
 
   /**
-   * Extract a company name from text
-   * @param title Title of the page
-   * @param snippet Snippet from the page
-   * @returns Extracted company name or placeholder
-   */
-  private extractCompanyName(title: string, snippet: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use NLP to extract company names
-
-    // Try to extract from title first (often more reliable)
-    const titleWords = title.split(/\s+/);
-    if (titleWords.length >= 2) {
-      // Assume the first two words might be a company name
-      return titleWords.slice(0, 2).join(' ');
-    }
-
-    // Fallback to a generic approach
-    return 'Company Name';
-  }
-
-  /**
-   * Extract a person name from text
-   * @param text Text to extract from
-   * @returns Extracted person name or placeholder
-   */
-  private extractPersonName(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use NLP to extract person names
-    return 'John Doe';
-  }
-
-  /**
-   * Extract a funding amount from text
-   * @param text Text to extract from
-   * @returns Extracted funding amount or placeholder
-   */
-  private extractFundingAmount(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use regex to extract monetary values
-
-    // Try to find a dollar amount
-    const dollarMatch = text.match(/\$\d+(\.\d+)?\s*(million|billion|m|b)?/i);
-    if (dollarMatch) {
-      return dollarMatch[0];
-    }
-
-    // Fallback to a random amount
-    return `$${(Math.random() * 10).toFixed(1)}M`;
-  }
-
-  /**
-   * Extract a funding stage from text
-   * @param text Text to extract from
-   * @returns Extracted funding stage or placeholder
-   */
-  private extractFundingStage(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use regex to extract funding stages
-
-    // Common funding stages
-    const stages = ['Seed', 'Series A', 'Series B', 'Series C', 'Growth'];
-
-    // Try to find a funding stage
-    for (const stage of stages) {
-      if (text.includes(stage)) {
-        return stage;
-      }
-    }
-
-    // Fallback to a random stage
-    return stages[Math.floor(Math.random() * stages.length)];
-  }
-
-  /**
-   * Extract a location from text
-   * @param text Text to extract from
-   * @returns Extracted location or placeholder
-   */
-  private extractLocation(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use NLP to extract locations
-
-    // Common locations
-    const locations = ['San Francisco', 'New York', 'London', 'Berlin', 'Singapore', 'Tokyo'];
-
-    // Try to find a location
-    for (const location of locations) {
-      if (text.includes(location)) {
-        return location;
-      }
-    }
-
-    // Fallback to a random location
-    return locations[Math.floor(Math.random() * locations.length)];
-  }
-
-  /**
-   * Extract an industry from text
-   * @param text Text to extract from
-   * @returns Extracted industry or placeholder
-   */
-  private extractIndustry(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use NLP to extract industries
-
-    // Common industries
-    const industries = ['Technology', 'Healthcare', 'Finance', 'Education', 'Retail', 'Manufacturing'];
-
-    // Try to find an industry
-    for (const industry of industries) {
-      if (text.includes(industry)) {
-        return industry;
-      }
-    }
-
-    // Fallback to a random industry
-    return industries[Math.floor(Math.random() * industries.length)];
-  }
-
-  /**
-   * Extract a year from text
-   * @param text Text to extract from
-   * @returns Extracted year or placeholder
-   */
-  private extractYear(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use regex to extract years
-
-    // Try to find a year (2000-2023)
-    const yearMatch = text.match(/20\d{2}/);
-    if (yearMatch) {
-      return yearMatch[0];
-    }
-
-    // Fallback to a random year
-    return `${2010 + Math.floor(Math.random() * 13)}`;
-  }
-
-  /**
-   * Extract an employee count from text
-   * @param text Text to extract from
-   * @returns Extracted employee count or placeholder
-   */
-  private extractEmployeeCount(text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use regex to extract numbers
-
-    // Try to find a number followed by 'employees'
-    const employeeMatch = text.match(/(\d+)\s*employees/i);
-    if (employeeMatch) {
-      return employeeMatch[1];
-    }
-
-    // Fallback to a random count
-    return `${10 + Math.floor(Math.random() * 990)}`;
-  }
-
-  /**
-   * Extract generic data based on a header
+   * Check if a header is related to monetary values
    * @param header Header name
-   * @param text Text to extract from
-   * @returns Extracted data or placeholder
+   * @returns True if it's a monetary header
    */
-  private extractGenericData(header: string, text: string): string {
-    // This is a placeholder implementation
-    // In a real implementation, this would use NLP to extract relevant data
-    return `Data for ${header}`;
+  private isMonetaryHeader(header: string): boolean {
+    const monetaryTerms = [
+      'funding', 'investment', 'capital', 'money', 'revenue',
+      'income', 'sales', 'price', 'cost', 'budget', 'valuation'
+    ];
+
+    return monetaryTerms.some(term => header.toLowerCase().includes(term));
   }
+
+  /**
+   * Check if a header is related to dates
+   * @param header Header name
+   * @returns True if it's a date header
+   */
+  private isDateHeader(header: string): boolean {
+    const dateTerms = [
+      'date', 'year', 'founded', 'established', 'launched',
+      'started', 'created', 'inception', 'beginning', 'birthday'
+    ];
+
+    return dateTerms.some(term => header.toLowerCase().includes(term));
+  }
+
+  /**
+   * Check if a header is related to numbers
+   * @param header Header name
+   * @returns True if it's a number header
+   */
+  private isNumberHeader(header: string): boolean {
+    const numberTerms = [
+      'number', 'count', 'amount', 'quantity', 'total',
+      'employees', 'staff', 'team', 'size', 'users', 'customers'
+    ];
+
+    return numberTerms.some(term => header.toLowerCase().includes(term));
+  }
+
+
 
   /**
    * Generate CSV from data

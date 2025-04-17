@@ -54,6 +54,30 @@ export interface ProcessedQuery {
   expandedQuery: string;
 }
 
+// Extraction types
+export interface ExtractionField {
+  name: string;
+  description?: string;
+  type?: 'string' | 'number' | 'date' | 'boolean' | 'array';
+  required?: boolean;
+  fallback?: string;
+}
+
+export interface ExtractedData {
+  [key: string]: string;
+  _source: string;
+  _title: string;
+}
+
+export interface ExtractionOptions {
+  confidenceThreshold?: number;
+  includeSource?: boolean;
+  includeConfidence?: boolean;
+  maxResults?: number;
+  fields?: ExtractionField[];
+  query?: string;
+}
+
 // Search types
 export interface SearchResult {
   url: string;
@@ -79,22 +103,7 @@ export interface RankedSearchResult extends SearchResult {
   merged?: string;
 }
 
-// Data extraction types
-export interface ExtractionField {
-  name: string;
-  description?: string;
-}
 
-export interface ExtractedData {
-  [key: string]: string;
-  _source: string;
-  _title: string;
-}
-
-export interface ExtractionOptions {
-  fields: ExtractionField[];
-  query: string;
-}
 
 // CSV types
 export interface CSVOptions {
