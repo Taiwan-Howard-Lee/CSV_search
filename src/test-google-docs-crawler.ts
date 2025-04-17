@@ -5,7 +5,9 @@
 import { EnhancedCrawler } from './crawler/enhanced-crawler';
 import { ContentProcessor } from './processor/content-processor';
 import { CrawlResult } from './types';
+import { HtmlParser } from './processor/html-parser';
 import axios from 'axios';
+import * as fs from 'fs';
 
 /**
  * Convert Google Docs URL to export URL
@@ -35,7 +37,7 @@ async function crawlGoogleDoc(url: string): Promise<void> {
 
   try {
     // Try different export formats
-    const formats = ['txt', 'html', 'pdf'];
+    const formats = ['html', 'txt', 'pdf'];
     let documentContent = '';
     let documentTitle = '';
     let documentType = 'text';
@@ -75,12 +77,41 @@ async function crawlGoogleDoc(url: string): Promise<void> {
           const titleMatch = documentContent.match(/<title>([^<]+)<\/title>/);
           documentTitle = titleMatch ? titleMatch[1] : 'Google Docs Document';
 
-          // Try to extract body content
-          const bodyMatch = documentContent.match(/<body[^>]*>([\s\S]*?)<\/body>/);
-          if (bodyMatch) {
-            // Remove HTML tags to get plain text
-            documentContent = bodyMatch[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          // Use the enhanced HTML parser to extract structured content
+          const htmlParser = new HtmlParser({
+            preserveHeadings: true,
+            preserveLists: true,
+            preserveTables: true,
+            preserveLinks: true,
+            preserveImages: true,
+            preserveEmphasis: true,
+            preserveStructure: true
+          });
+
+          // Parse the HTML
+          const parsedHtml = htmlParser.parse(documentContent, exportUrl);
+
+          // Use the structured text
+          documentContent = parsedHtml.structuredText;
+
+          // Save the parsed HTML data
+          const outputDir = 'google-docs-output';
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir);
           }
+
+          fs.writeFileSync(`${outputDir}/parsed-html.json`, JSON.stringify({
+            title: parsedHtml.title,
+            headings: parsedHtml.headings,
+            links: parsedHtml.links,
+            tables: parsedHtml.tables,
+            lists: parsedHtml.lists,
+            metadata: parsedHtml.metadata
+          }, null, 2));
+
+          fs.writeFileSync(`${outputDir}/structured-text.txt`, parsedHtml.structuredText);
+          fs.writeFileSync(`${outputDir}/plain-text.txt`, parsedHtml.text);
+          fs.writeFileSync(`${outputDir}/clean-html.html`, parsedHtml.cleanHtml);
 
           documentType = 'html';
           exportFormat = 'html';
@@ -148,7 +179,6 @@ async function crawlGoogleDoc(url: string): Promise<void> {
 
     // Save the content to a file
     console.log('\nSaving content to google-doc-content.txt');
-    const fs = require('fs');
     fs.writeFileSync('google-doc-content.txt', processed.text);
     console.log('Content saved successfully');
   } catch (error) {
