@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SBC Gina - Structured Data Search Engine</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <div class="logo-container">
+      <img src="sbc-gina-logo.svg" alt="SBC GINA Logo" class="logo-img">
+    </div>
+    <h1>SBC GINA</h1>
+    <p class="tagline">Structured Data Search Engine</p>
+
+    <div class="form-group">
+      <label for="query">Search Query:</label>
+      <input type="text" id="query" placeholder="Enter your search query (e.g., 'AI startups in healthcare')">
+    </div>
+
+    <div class="form-group">
+      <label>CSV Headers:</label>
+      <div id="headers-container">
+        <div class="header-item">
+          <input type="text" class="header-input" placeholder="Header name (e.g., 'startup name')">
+          <input type="text" class="header-desc" placeholder="Description (e.g., 'Name of the company')">
+          <button class="remove-header">✕</button>
+        </div>
+      </div>
+      <button id="add-header">Add Header</button>
+    </div>
+
+    <div class="form-group">
+      <label for="max-results">Maximum Results:</label>
+      <input type="number" id="max-results" value="10" min="1" max="50">
+    </div>
+
+    <div class="form-group">
+      <label for="search-depth">Search Depth (for Deep Search):</label>
+      <input type="number" id="search-depth" value="2" min="1" max="5">
+    </div>
+
+    <div class="form-group">
+      <label for="include-source">
+        <input type="checkbox" id="include-source" checked>
+        Include source URLs in CSV
+      </label>
+    </div>
+
+    <div class="form-group">
+      <button id="search-btn">Simple Search</button>
+      <button id="deep-search-btn">Deep Search</button>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="loading-spinner"></div>
+      <p>Searching... This may take a few minutes as we crawl the web for your data.</p>
+    </div>
+
+    <div class="results" id="results">
+      <h2>Results Ready!</h2>
+      <p>Your CSV file with the requested data has been generated.</p>
+      <a id="download-link" href="#" class="download-btn" download="search-results.csv">Download CSV</a>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
