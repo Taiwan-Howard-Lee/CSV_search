@@ -7,7 +7,7 @@ import * as fs from 'fs';
 
 async function testHtmlParser() {
   console.log('Testing Enhanced HTML Parser...');
-  
+
   // Create a parser instance
   const parser = new HtmlParser({
     preserveHeadings: true,
@@ -20,7 +20,7 @@ async function testHtmlParser() {
     wordwrap: 100,
     removeEmptyLines: true
   });
-  
+
   // Test HTML samples
   const samples = [
     {
@@ -176,14 +176,14 @@ async function testHtmlParser() {
       `
     }
   ];
-  
+
   // Process each sample
   for (const sample of samples) {
     console.log(`\n--- Testing ${sample.name} ---`);
-    
+
     // Parse the HTML
-    const parsedHtml = parser.parse(sample.html, 'https://example.com');
-    
+    const parsedHtml = await parser.parse(sample.html, 'https://example.com');
+
     // Display the results
     console.log(`Title: ${parsedHtml.title}`);
     console.log(`Metadata: ${Object.keys(parsedHtml.metadata).length} items`);
@@ -192,23 +192,23 @@ async function testHtmlParser() {
     console.log(`Images: ${parsedHtml.images.length} items`);
     console.log(`Tables: ${parsedHtml.tables.length} items`);
     console.log(`Lists: ${parsedHtml.lists.length} items`);
-    
+
     // Display the plain text
     console.log('\nPlain Text (first 200 characters):');
     console.log(parsedHtml.text.substring(0, 200));
-    
+
     // Display the structured text
     console.log('\nStructured Text (first 200 characters):');
     console.log(parsedHtml.structuredText.substring(0, 200));
-    
+
     // Save the results to files
     const outputDir = 'html-parser-output';
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir);
     }
-    
+
     const baseName = sample.name.toLowerCase().replace(/\s+/g, '-');
-    
+
     fs.writeFileSync(`${outputDir}/${baseName}-plain.txt`, parsedHtml.text);
     fs.writeFileSync(`${outputDir}/${baseName}-structured.txt`, parsedHtml.structuredText);
     fs.writeFileSync(`${outputDir}/${baseName}-clean.html`, parsedHtml.cleanHtml);
@@ -217,10 +217,10 @@ async function testHtmlParser() {
     fs.writeFileSync(`${outputDir}/${baseName}-links.json`, JSON.stringify(parsedHtml.links, null, 2));
     fs.writeFileSync(`${outputDir}/${baseName}-tables.json`, JSON.stringify(parsedHtml.tables, null, 2));
     fs.writeFileSync(`${outputDir}/${baseName}-lists.json`, JSON.stringify(parsedHtml.lists, null, 2));
-    
+
     console.log(`\nResults saved to ${outputDir}/${baseName}-*.txt/json`);
   }
-  
+
   console.log('\nEnhanced HTML Parser test completed!');
 }
 

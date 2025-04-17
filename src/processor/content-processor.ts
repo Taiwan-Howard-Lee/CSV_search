@@ -12,6 +12,8 @@ import { CrawlResult } from '../types';
 import axios from 'axios';
 // Import the new HTML Parser
 import { HtmlParser, ParsedHtml } from './html-parser';
+// Import the Schema Detector
+import { SchemaData } from './schema-detector';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { Document } from 'docx';
@@ -173,7 +175,7 @@ export class ContentProcessor {
     const { url, html, title } = result;
 
     // Parse HTML using the enhanced HTML Parser
-    const parsedHtml = this.htmlParser.parse(html, url);
+    const parsedHtml = await this.htmlParser.parse(html, url);
 
     // We have both plain text and structured text available
     // structuredText = parsedHtml.structuredText;
@@ -192,7 +194,7 @@ export class ContentProcessor {
 
     // Add headings to metadata for better search context
     if (parsedHtml.headings.length > 0) {
-      metadata['headings'] = parsedHtml.headings.map(h => `${h.level}:${h.text}`).join('|');
+      metadata['headings'] = parsedHtml.headings.map((h: any) => `${h.level}:${h.text}`).join('|');
     }
 
     // Add table information to metadata
@@ -203,6 +205,21 @@ export class ContentProcessor {
     // Add list information to metadata
     if (parsedHtml.lists.length > 0) {
       metadata['lists'] = String(parsedHtml.lists.length);
+    }
+
+    // Add schema.org data to metadata
+    if (parsedHtml.schemaData && parsedHtml.schemaData.length > 0) {
+      metadata['schema_types'] = parsedHtml.schemaData.map(s => s.type).join(',');
+
+      // Add count of each schema type
+      const typeCounts: Record<string, number> = {};
+      for (const schema of parsedHtml.schemaData) {
+        typeCounts[schema.type] = (typeCounts[schema.type] || 0) + 1;
+      }
+
+      for (const [type, count] of Object.entries(typeCounts)) {
+        metadata[`schema_${type.toLowerCase()}_count`] = String(count);
+      }
     }
 
     // Segment content if needed
@@ -222,7 +239,8 @@ export class ContentProcessor {
       metadata,
       chunks: segmentResult.chunks,
       chunk_positions: segmentResult.chunk_positions as [number, number][],
-      documentType: 'html'
+      documentType: 'html',
+      schemaData: parsedHtml.schemaData
     };
   }
 

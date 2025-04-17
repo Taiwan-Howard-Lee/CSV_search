@@ -89,7 +89,7 @@ async function crawlGoogleDoc(url: string): Promise<void> {
           });
 
           // Parse the HTML
-          const parsedHtml = htmlParser.parse(documentContent, exportUrl);
+          const parsedHtml = await htmlParser.parse(documentContent, exportUrl);
 
           // Use the structured text
           documentContent = parsedHtml.structuredText;

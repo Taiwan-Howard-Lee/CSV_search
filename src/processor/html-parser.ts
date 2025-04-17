@@ -8,6 +8,7 @@
 import * as cheerio from 'cheerio';
 import { htmlToText } from 'html-to-text';
 import sanitizeHtml from 'sanitize-html';
+import { SchemaDetector, SchemaData } from './schema-detector';
 
 export interface HtmlParserOptions {
   /**
@@ -74,6 +75,16 @@ export interface HtmlParserOptions {
    * Selectors for elements to remove
    */
   removeSelectors?: string[];
+
+  /**
+   * Whether to detect schema.org structured data
+   */
+  detectSchema?: boolean;
+
+  /**
+   * Schema types to extract (if empty, extract all)
+   */
+  schemaTypes?: string[];
 }
 
 /**
@@ -112,7 +123,9 @@ const DEFAULT_OPTIONS: HtmlParserOptions = {
     '[role=navigation]',
     '[role=complementary]',
     '[role=contentinfo]'
-  ]
+  ],
+  detectSchema: true,
+  schemaTypes: []
 };
 
 export interface ParsedHtml {
@@ -184,10 +197,16 @@ export interface ParsedHtml {
    * Cleaned HTML with unwanted elements removed
    */
   cleanHtml: string;
+
+  /**
+   * Structured data extracted from schema.org markup
+   */
+  schemaData: SchemaData[];
 }
 
 export class HtmlParser {
   private options: HtmlParserOptions;
+  private schemaDetector: SchemaDetector;
 
   /**
    * Create a new HtmlParser instance
@@ -195,6 +214,11 @@ export class HtmlParser {
    */
   constructor(options: HtmlParserOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
+
+    // Initialize schema detector
+    this.schemaDetector = new SchemaDetector({
+      schemaTypes: this.options.schemaTypes
+    });
   }
 
   /**
@@ -203,7 +227,7 @@ export class HtmlParser {
    * @param baseUrl Base URL for resolving relative links
    * @returns Parsed HTML
    */
-  parse(html: string, baseUrl?: string): ParsedHtml {
+  async parse(html: string, baseUrl?: string): Promise<ParsedHtml> {
     // Load HTML with Cheerio
     const $ = cheerio.load(html, {
       decodeEntities: this.options.decodeEntities
@@ -242,6 +266,17 @@ export class HtmlParser {
     // Convert to structured text
     const structuredText = this.htmlToStructuredText(cleanHtml);
 
+    // Detect schema.org data
+    let schemaData: SchemaData[] = [];
+    if (this.options.detectSchema) {
+      try {
+        schemaData = await this.schemaDetector.detect(html, baseUrl);
+        console.log(`Detected ${schemaData.length} schema.org items`);
+      } catch (error) {
+        console.error('Error detecting schema.org data:', error);
+      }
+    }
+
     return {
       text,
       structuredText,
@@ -252,7 +287,8 @@ export class HtmlParser {
       images,
       tables,
       lists,
-      cleanHtml
+      cleanHtml,
+      schemaData
     };
   }
 
