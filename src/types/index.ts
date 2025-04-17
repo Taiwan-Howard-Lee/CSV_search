@@ -40,6 +40,27 @@ export interface ProcessedContent {
   metadata: Record<string, string>;
   chunks: string[];
   chunk_positions: [number, number][];
+  isPdf?: boolean;
+  pdfInfo?: {
+    numPages?: number;
+    author?: string;
+    title?: string;
+    subject?: string;
+    keywords?: string[];
+    creationDate?: string;
+    modificationDate?: string;
+    creator?: string;
+    producer?: string;
+    version?: string;
+    pageSize?: {
+      width: number;
+      height: number;
+      unit: string;
+    };
+    fileName?: string;
+    fileSize?: number;
+    isPdf?: boolean;
+  };
 }
 
 export interface ProcessorOptions {
@@ -47,6 +68,10 @@ export interface ProcessorOptions {
   withLinks?: boolean;
   segmentContent?: boolean;
   mdLinkStyle?: 'inline' | 'reference' | 'discarded';
+  extractPdfMetadata?: boolean;
+  pdfTextLayout?: boolean;
+  pdfMaxPages?: number;
+  pdfVersion?: string;
 }
 
 // Query processor types

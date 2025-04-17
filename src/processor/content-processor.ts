@@ -8,6 +8,8 @@ import * as cheerio from 'cheerio';
 import TurndownService from 'turndown';
 import { ProcessedContent, ProcessorOptions } from '../types';
 import { CrawlResult } from '../types';
+// We'll use a simpler approach for PDF processing
+import axios from 'axios';
 
 /**
  * Default processor options
@@ -16,7 +18,11 @@ const DEFAULT_OPTIONS: ProcessorOptions = {
   withImages: true,
   withLinks: true,
   segmentContent: true,
-  mdLinkStyle: 'inline'
+  mdLinkStyle: 'inline',
+  extractPdfMetadata: true,
+  pdfTextLayout: false,
+  pdfMaxPages: 50,
+  pdfVersion: '1.10.100'
 };
 
 /**
@@ -66,7 +72,14 @@ export class ContentProcessor {
    * @returns Processed content
    */
   async process(result: CrawlResult): Promise<ProcessedContent> {
-    const { url, html, title } = result;
+    const { url, html, title, contentType, pdfs } = result;
+
+    // Check if this is a PDF result
+    const isPdf = contentType?.includes('application/pdf') || (pdfs !== undefined && pdfs.length > 0);
+
+    if (isPdf) {
+      return this.processPdf(result);
+    }
 
     // Load HTML with Cheerio
     const $ = cheerio.load(html);
@@ -96,7 +109,8 @@ export class ContentProcessor {
       html: $.html(),
       metadata,
       chunks: segmentResult.chunks,
-      chunk_positions: segmentResult.chunk_positions as [number, number][]
+      chunk_positions: segmentResult.chunk_positions as [number, number][],
+      isPdf: false
     };
   }
 
@@ -264,6 +278,91 @@ export class ContentProcessor {
 
     return { chunks, chunk_positions };
   }
+
+  /**
+   * Process a PDF crawl result
+   * @param result Crawl result to process
+   * @returns Processed content
+   */
+  private async processPdf(result: CrawlResult): Promise<ProcessedContent> {
+    const { url, text, title, pdfs } = result;
+
+    try {
+      // Use the text that was already extracted by the crawler
+      // This is more reliable than trying to parse the PDF ourselves
+      const pdfText = text || '';
+
+      // Create HTML representation
+      const pdfHtml = `<html><body><pre>${pdfText}</pre></body></html>`;
+
+      // Convert to markdown (for PDFs, plain text is fine)
+      const markdown = pdfText;
+
+      // Extract basic metadata
+      const metadata: Record<string, string> = {
+        contentType: 'application/pdf',
+        source: url
+      };
+
+      // Try to extract filename from URL
+      const urlParts = url.split('/');
+      const fileName = urlParts[urlParts.length - 1].split('?')[0];
+      if (fileName.toLowerCase().endsWith('.pdf')) {
+        metadata.fileName = fileName;
+      }
+
+      // Segment content if needed
+      const segmentResult = this.options.segmentContent
+        ? this.segmentContent(pdfText)
+        : { chunks: [pdfText], chunk_positions: [[0, pdfText.length] as [number, number]] };
+
+      // Create basic PDF info
+      const pdfInfo = {
+        numPages: 0, // We don't know without parsing
+        fileName: fileName || 'document.pdf',
+        fileSize: 0, // We don't know without fetching
+        isPdf: true
+      };
+
+      return {
+        url,
+        title: title || fileName || 'PDF Document',
+        text: pdfText,
+        markdown,
+        html: pdfHtml,
+        metadata,
+        chunks: segmentResult.chunks,
+        chunk_positions: segmentResult.chunk_positions as [number, number][],
+        isPdf: true,
+        pdfInfo
+      };
+    } catch (error) {
+      console.error(`Error processing PDF ${url}:`, error);
+
+      // Fallback to empty content
+      const fallbackText = '';
+
+      return {
+        url,
+        title: title || url,
+        text: fallbackText,
+        markdown: fallbackText,
+        html: `<html><body><pre>${fallbackText}</pre></body></html>`,
+        metadata: {},
+        chunks: [fallbackText],
+        chunk_positions: [[0, 0] as [number, number]],
+        isPdf: true,
+        pdfInfo: {
+          numPages: 0,
+          fileName: 'unknown.pdf',
+          fileSize: 0,
+          isPdf: true
+        }
+      };
+    }
+  }
+
+
 
   /**
    * Turndown plugin for reference-style links
