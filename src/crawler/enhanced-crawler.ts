@@ -8,6 +8,9 @@
 import axios from 'axios';
 import puppeteer from 'puppeteer';
 import robotsParser from 'robots-parser';
+import Sitemapper from 'sitemapper';
+import * as xml2js from 'xml2js';
+import * as pdfjsLib from 'pdfjs-dist';
 import { CrawlOptions, CrawlResult } from '../types';
 import { URL } from 'url';
 
@@ -25,7 +28,11 @@ export class EnhancedCrawler {
     timeout: 30000,
     userAgent: 'SBC-GINA-Crawler/1.0',
     cacheValidMs: 24 * 60 * 60 * 1000, // 24 hours
-    respectRobotsTxt: true
+    respectRobotsTxt: true,
+    useSitemaps: true,
+    adaptiveCrawling: true,
+    extractPdf: true,
+    maxLinksPerPage: 20
   };
 
   /**
@@ -53,6 +60,19 @@ export class EnhancedCrawler {
     parser: any;
     timestamp: number;
   }> = new Map();
+
+  /**
+   * Cache for storing sitemaps
+   */
+  private sitemapCache: Map<string, {
+    urls: string[];
+    timestamp: number;
+  }> = new Map();
+
+  /**
+   * Sitemapper instance for parsing sitemaps
+   */
+  private sitemapper: Sitemapper = new Sitemapper({});
 
   /**
    * Puppeteer browser instance
@@ -86,9 +106,47 @@ export class EnhancedCrawler {
       // Reset visited URLs
       this.visitedUrls.clear();
 
+      // Get sitemap URLs if enabled
+      let sitemapUrls: string[] = [];
+      if (this.options.useSitemaps) {
+        sitemapUrls = await this.getSitemapUrls(startUrl);
+        console.log(`Found ${sitemapUrls.length} URLs from sitemap`);
+      }
+
       // Start crawling
       const results: CrawlResult[] = [];
+
+      // First crawl the start URL
       await this.crawlRecursive(startUrl, 0, depth, results);
+
+      // Then crawl sitemap URLs if available
+      if (sitemapUrls.length > 0) {
+        // Prioritize sitemap URLs based on relevance if adaptive crawling is enabled
+        if (this.options.adaptiveCrawling && this.options.priorityKeywords) {
+          sitemapUrls = this.prioritizeUrls(sitemapUrls);
+        }
+
+        // Crawl each sitemap URL (limited by maxPages)
+        const maxPages = this.options.maxPages || 10;
+        for (const url of sitemapUrls) {
+          if (results.length >= maxPages) {
+            break;
+          }
+
+          if (!this.visitedUrls.has(url)) {
+            try {
+              // Add delay between requests
+              await new Promise(resolve => setTimeout(resolve, this.options.delayMs || 1000));
+
+              // Fetch the URL
+              const result = await this.fetchUrl(url);
+              results.push(result);
+            } catch (error) {
+              console.error(`Error fetching sitemap URL ${url}:`, error);
+            }
+          }
+        }
+      }
 
       return results;
     } finally {
@@ -318,6 +376,25 @@ export class EnhancedCrawler {
 
     console.log(`Fetching ${url}`);
 
+    // Check if it's a PDF
+    const isPdf = url.toLowerCase().endsWith('.pdf');
+    if (isPdf && this.options.extractPdf) {
+      try {
+        const result = await this.fetchPdf(url);
+
+        // Cache the result
+        this.cache.set(url, {
+          result,
+          timestamp: Date.now()
+        });
+
+        return result;
+      } catch (error) {
+        console.error(`Error fetching PDF ${url}:`, error);
+        throw error;
+      }
+    }
+
     // Determine if we should use Puppeteer based on URL or content type
     const shouldUsePuppeteer = this.shouldUsePuppeteer(url);
 
@@ -328,6 +405,20 @@ export class EnhancedCrawler {
         result = await this.fetchWithPuppeteer(url);
       } else {
         result = await this.fetchWithHttp(url);
+      }
+
+      // If the content is a PDF and we should extract PDFs, process it
+      if (result.contentType.includes('application/pdf') && this.options.extractPdf) {
+        try {
+          const pdfResult = await this.fetchPdf(url);
+          result = {
+            ...result,
+            text: pdfResult.text,
+            pdfs: [url]
+          };
+        } catch (pdfError) {
+          console.error(`Error extracting PDF content from ${url}:`, pdfError);
+        }
       }
 
       // Cache the result
@@ -603,7 +694,170 @@ export class EnhancedCrawler {
       links.push([title || absoluteUrl, absoluteUrl]);
     }
 
+    // Limit the number of links if maxLinksPerPage is set
+    if (this.options.maxLinksPerPage && links.length > this.options.maxLinksPerPage) {
+      // If adaptive crawling is enabled, prioritize links
+      if (this.options.adaptiveCrawling && this.options.priorityKeywords) {
+        // Extract just the URLs for prioritization
+        const urls = links.map(link => link[1]);
+        const prioritizedUrls = this.prioritizeUrls(urls);
+
+        // Filter links to keep only the prioritized ones
+        const prioritizedLinks: Array<[string, string]> = [];
+        for (const url of prioritizedUrls.slice(0, this.options.maxLinksPerPage)) {
+          const link = links.find(l => l[1] === url);
+          if (link) {
+            prioritizedLinks.push(link);
+          }
+        }
+
+        return prioritizedLinks;
+      } else {
+        // Otherwise, just take the first maxLinksPerPage links
+        return links.slice(0, this.options.maxLinksPerPage);
+      }
+    }
+
     return links;
+  }
+
+  /**
+   * Get URLs from a sitemap
+   * @param baseUrl Base URL to find the sitemap
+   * @returns Array of URLs from the sitemap
+   */
+  private async getSitemapUrls(baseUrl: string): Promise<string[]> {
+    try {
+      const parsedUrl = new URL(baseUrl);
+      const sitemapUrl = `${parsedUrl.protocol}//${parsedUrl.hostname}/sitemap.xml`;
+
+      // Check cache first
+      const cached = this.sitemapCache.get(sitemapUrl);
+      if (cached && Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) { // 24 hours
+        console.log(`Using cached sitemap for ${sitemapUrl}`);
+        return cached.urls;
+      }
+
+      console.log(`Fetching sitemap from ${sitemapUrl}`);
+
+      // Try to fetch the sitemap
+      try {
+        const result = await this.sitemapper.fetch(sitemapUrl);
+        const urls = result.sites || [];
+
+        // Cache the results
+        this.sitemapCache.set(sitemapUrl, {
+          urls,
+          timestamp: Date.now()
+        });
+
+        return urls;
+      } catch (error) {
+        console.error(`Error fetching sitemap from ${sitemapUrl}:`, error);
+
+        // Try robots.txt for sitemap location
+        return this.getSitemapFromRobotsTxt(baseUrl);
+      }
+    } catch (error) {
+      console.error(`Error getting sitemap URLs for ${baseUrl}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get sitemap URL from robots.txt
+   * @param baseUrl Base URL to find robots.txt
+   * @returns Array of URLs from the sitemap
+   */
+  private async getSitemapFromRobotsTxt(baseUrl: string): Promise<string[]> {
+    try {
+      const parsedUrl = new URL(baseUrl);
+      const robotsUrl = `${parsedUrl.protocol}//${parsedUrl.hostname}/robots.txt`;
+
+      console.log(`Looking for sitemap in robots.txt at ${robotsUrl}`);
+
+      // Fetch robots.txt
+      const response = await axios.get(robotsUrl, {
+        timeout: 5000,
+        validateStatus: (status: number) => status < 400 || status === 404
+      }).catch(() => ({ data: '', status: 404 }));
+
+      if (response.status === 404 || !response.data) {
+        return [];
+      }
+
+      // Extract sitemap URLs
+      const sitemapUrls: string[] = [];
+      const lines = response.data.split('\n');
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine.toLowerCase().startsWith('sitemap:')) {
+          const sitemapUrl = trimmedLine.substring(8).trim();
+          if (sitemapUrl) {
+            sitemapUrls.push(sitemapUrl);
+          }
+        }
+      }
+
+      // Fetch each sitemap
+      const allUrls: string[] = [];
+
+      for (const sitemapUrl of sitemapUrls) {
+        try {
+          const result = await this.sitemapper.fetch(sitemapUrl);
+          allUrls.push(...(result.sites || []));
+        } catch (error) {
+          console.error(`Error fetching sitemap from ${sitemapUrl}:`, error);
+        }
+      }
+
+      // Cache the results
+      if (allUrls.length > 0) {
+        this.sitemapCache.set(`${parsedUrl.protocol}//${parsedUrl.hostname}/sitemap.xml`, {
+          urls: allUrls,
+          timestamp: Date.now()
+        });
+      }
+
+      return allUrls;
+    } catch (error) {
+      console.error(`Error getting sitemap from robots.txt for ${baseUrl}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Prioritize URLs based on relevance to priority keywords
+   * @param urls Array of URLs to prioritize
+   * @returns Prioritized array of URLs
+   */
+  private prioritizeUrls(urls: string[]): string[] {
+    // If no priority keywords, return original array
+    if (!this.options.priorityKeywords || this.options.priorityKeywords.length === 0) {
+      return urls;
+    }
+
+    // Score each URL based on priority keywords
+    const scoredUrls = urls.map(url => {
+      let score = 0;
+      const lowerUrl = url.toLowerCase();
+
+      // Check each keyword
+      for (const keyword of this.options.priorityKeywords!) {
+        if (lowerUrl.includes(keyword.toLowerCase())) {
+          score += 1;
+        }
+      }
+
+      return { url, score };
+    });
+
+    // Sort by score (descending)
+    scoredUrls.sort((a, b) => b.score - a.score);
+
+    // Return just the URLs
+    return scoredUrls.map(item => item.url);
   }
 
   /**
@@ -617,6 +871,65 @@ export class EnhancedCrawler {
       return new URL(url, baseUrl).href;
     } catch (error) {
       return '';
+    }
+  }
+
+  /**
+   * Fetch and extract content from a PDF
+   * @param url URL of the PDF
+   * @returns Crawl result with PDF content
+   */
+  private async fetchPdf(url: string): Promise<CrawlResult> {
+    console.log(`Extracting content from PDF: ${url}`);
+
+    try {
+      // Fetch the PDF data
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent': this.options.userAgent || 'SBC-GINA-Crawler/1.0'
+        },
+        timeout: this.options.timeout || 30000
+      });
+
+      // Convert to Uint8Array
+      const data = new Uint8Array(response.data);
+
+      // Disable worker to avoid issues in Node.js environment
+      // In a production environment, you would set up a proper worker
+      (pdfjsLib as any).disableWorker = true;
+
+      // Load the PDF document
+      const loadingTask = pdfjsLib.getDocument({ data });
+      const pdfDocument = await loadingTask.promise;
+
+      // Extract text from each page
+      let text = '';
+      const numPages = pdfDocument.numPages;
+
+      for (let i = 1; i <= numPages; i++) {
+        const page = await pdfDocument.getPage(i);
+        const content = await page.getTextContent();
+        const strings = content.items.map((item: any) => item.str);
+        text += strings.join(' ') + '\n';
+      }
+
+      // Create a result object
+      const result: CrawlResult = {
+        url,
+        html: `<html><body><pre>${text}</pre></body></html>`,
+        title: url.split('/').pop() || url,
+        text,
+        links: [],
+        status: response.status,
+        contentType: 'application/pdf',
+        pdfs: [url]
+      };
+
+      return result;
+    } catch (error) {
+      console.error(`Error extracting PDF content from ${url}:`, error);
+      throw error;
     }
   }
 }

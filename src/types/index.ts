@@ -23,6 +23,11 @@ export interface CrawlOptions {
   userAgent?: string;
   cacheValidMs?: number;
   respectRobotsTxt?: boolean;
+  useSitemaps?: boolean;
+  adaptiveCrawling?: boolean;
+  extractPdf?: boolean;
+  maxLinksPerPage?: number;
+  priorityKeywords?: string[];
 }
 
 // Content processor types
