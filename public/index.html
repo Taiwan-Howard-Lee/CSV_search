@@ -8,65 +8,291 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-  <div class="container">
+  <header>
     <div class="logo-container">
       <img src="sbc-gina-logo.svg" alt="SBC GINA Logo" class="logo-img">
+      <h1>SBC GINA</h1>
     </div>
-    <h1>SBC GINA</h1>
-    <p class="tagline">Structured Data Search Engine</p>
+    <nav>
+      <ul>
+        <li><a href="#" class="active">Search</a></li>
+        <li><a href="#" id="settings-link">Settings</a></li>
+        <li><a href="#" id="about-link">About</a></li>
+      </ul>
+    </nav>
+  </header>
 
-    <div class="form-group">
-      <label for="query">Search Query:</label>
-      <input type="text" id="query" placeholder="Enter your search query (e.g., 'AI startups in healthcare')">
-    </div>
+  <main>
+    <div class="container">
+      <p class="tagline">Structured Data Search Engine</p>
 
-    <div class="form-group">
-      <label>CSV Headers:</label>
-      <div id="headers-container">
-        <div class="header-item">
-          <input type="text" class="header-input" placeholder="Header name (e.g., 'startup name')">
-          <input type="text" class="header-desc" placeholder="Description (e.g., 'Name of the company')">
-          <button class="remove-header">✕</button>
+      <div class="search-container">
+        <div class="form-group">
+          <label for="query">Search Query:</label>
+          <div class="search-box">
+            <input type="text" id="query" placeholder="Enter your search query (e.g., 'AI startups in healthcare')">
+            <button id="search-btn">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="advanced-search-toggle">
+          <a href="#" id="advanced-search-link">Advanced Search Options</a>
+        </div>
+
+        <div class="advanced-search-panel" id="advanced-search-panel">
+          <div class="form-group">
+            <label>CSV Headers:</label>
+            <div id="headers-container">
+              <div class="header-item">
+                <input type="text" class="header-input" placeholder="Header name (e.g., 'startup name')">
+                <input type="text" class="header-desc" placeholder="Description (e.g., 'Name of the company')">
+                <button class="remove-header">✕</button>
+              </div>
+            </div>
+            <button id="add-header">Add Header</button>
+          </div>
+
+          <div class="form-group">
+            <label for="max-results">Maximum Results:</label>
+            <input type="number" id="max-results" value="10" min="1" max="50">
+          </div>
+
+          <div class="form-group">
+            <label for="search-depth">Search Depth:</label>
+            <input type="number" id="search-depth" value="2" min="1" max="5">
+          </div>
+
+          <div class="form-group">
+            <label for="file-type">File Type:</label>
+            <select id="file-type">
+              <option value="all">All</option>
+              <option value="html">HTML</option>
+              <option value="pdf">PDF</option>
+              <option value="docx">DOCX</option>
+              <option value="xlsx">XLSX</option>
+              <option value="pptx">PPTX</option>
+              <option value="csv">CSV</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="ranking-algorithm">Ranking Algorithm:</label>
+            <select id="ranking-algorithm">
+              <option value="bm25">BM25</option>
+              <option value="tfidf">TF-IDF</option>
+              <option value="combined">Combined</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="schema-type">Schema Type:</label>
+            <select id="schema-type">
+              <option value="all">All</option>
+              <option value="Product">Products</option>
+              <option value="Event">Events</option>
+              <option value="Person">People</option>
+              <option value="Organization">Organizations</option>
+              <option value="Article">Articles</option>
+              <option value="Recipe">Recipes</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="include-source">
+              <input type="checkbox" id="include-source" checked>
+              Include source URLs in CSV
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="schema-detection">
+              <input type="checkbox" id="schema-detection" checked>
+              Enable Schema.org Detection
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="enhanced-parsing">
+              <input type="checkbox" id="enhanced-parsing" checked>
+              Enhanced HTML Parsing
+            </label>
+          </div>
         </div>
       </div>
-      <button id="add-header">Add Header</button>
-    </div>
 
-    <div class="form-group">
-      <label for="max-results">Maximum Results:</label>
-      <input type="number" id="max-results" value="10" min="1" max="50">
-    </div>
+      <div class="search-actions">
+        <button id="simple-search-btn" class="primary-button">Simple Search</button>
+        <button id="deep-search-btn" class="secondary-button">Deep Search</button>
+      </div>
 
-    <div class="form-group">
-      <label for="search-depth">Search Depth (for Deep Search):</label>
-      <input type="number" id="search-depth" value="2" min="1" max="5">
-    </div>
+      <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <p>Searching... This may take a few minutes as we crawl the web for your data.</p>
+      </div>
 
-    <div class="form-group">
-      <label for="include-source">
-        <input type="checkbox" id="include-source" checked>
-        Include source URLs in CSV
-      </label>
-    </div>
+      <div class="results-container" id="results-container">
+        <div class="facets-panel" id="facets-panel">
+          <h3>Filter Results</h3>
+          <div class="facet-group">
+            <h4>Document Type</h4>
+            <ul class="facet-list" id="document-type-facets">
+              <!-- Dynamically populated -->
+            </ul>
+          </div>
+          <div class="facet-group">
+            <h4>Schema Types</h4>
+            <ul class="facet-list" id="schema-type-facets">
+              <!-- Dynamically populated -->
+            </ul>
+          </div>
+        </div>
 
-    <div class="form-group">
-      <button id="search-btn">Simple Search</button>
-      <button id="deep-search-btn">Deep Search</button>
-    </div>
+        <div class="results-list" id="results-list">
+          <!-- Search results will be displayed here -->
+        </div>
+      </div>
 
-    <div class="loading" id="loading">
-      <div class="loading-spinner"></div>
-      <p>Searching... This may take a few minutes as we crawl the web for your data.</p>
-    </div>
+      <div class="csv-results" id="csv-results">
+        <h2>CSV Results Ready!</h2>
+        <p>Your CSV file with the requested data has been generated.</p>
+        <a id="download-link" href="#" class="download-btn" download="search-results.csv">Download CSV</a>
+      </div>
 
-    <div class="results" id="results">
-      <h2>Results Ready!</h2>
-      <p>Your CSV file with the requested data has been generated.</p>
-      <a id="download-link" href="#" class="download-btn" download="search-results.csv">Download CSV</a>
+      <div class="document-viewer" id="document-viewer">
+        <div class="document-header">
+          <button class="close-button" id="close-document-button">
+            <i class="fas fa-times"></i>
+          </button>
+          <h2 id="document-title">Document Title</h2>
+        </div>
+        <div class="document-tabs">
+          <button class="tab-button active" data-tab="content">Content</button>
+          <button class="tab-button" data-tab="metadata">Metadata</button>
+          <button class="tab-button" data-tab="schema">Schema Data</button>
+        </div>
+        <div class="document-content tab-content active" id="content-tab">
+          <!-- Document content will be displayed here -->
+        </div>
+        <div class="document-metadata tab-content" id="metadata-tab">
+          <!-- Document metadata will be displayed here -->
+        </div>
+        <div class="document-schema tab-content" id="schema-tab">
+          <!-- Document schema data will be displayed here -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="settings-modal" id="settings-modal">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="close-button" id="close-settings-button">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <h3>Search Settings</h3>
+          <div class="setting-item">
+            <label for="results-per-page">Results Per Page:</label>
+            <select id="results-per-page">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="highlight-matches">Highlight Matches:</label>
+            <input type="checkbox" id="highlight-matches" checked>
+          </div>
+          <div class="setting-item">
+            <label for="include-snippets">Include Snippets:</label>
+            <input type="checkbox" id="include-snippets" checked>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3>Data Sources</h3>
+          <div class="setting-item">
+            <label for="web-source">Web:</label>
+            <input type="checkbox" id="web-source" checked>
+          </div>
+          <div class="setting-item">
+            <label for="docs-source">Google Docs:</label>
+            <input type="checkbox" id="docs-source" checked>
+          </div>
+          <div class="setting-item">
+            <label for="pdf-source">PDF Documents:</label>
+            <input type="checkbox" id="pdf-source" checked>
+          </div>
+          <div class="setting-item">
+            <label for="office-source">Office Documents:</label>
+            <input type="checkbox" id="office-source" checked>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3>Advanced Settings</h3>
+          <div class="setting-item">
+            <label for="query-expansion">Query Expansion:</label>
+            <input type="checkbox" id="query-expansion" checked>
+          </div>
+          <div class="setting-item">
+            <label for="schema-detection-setting">Schema Detection:</label>
+            <input type="checkbox" id="schema-detection-setting" checked>
+          </div>
+          <div class="setting-item">
+            <label for="content-processing">Content Processing:</label>
+            <select id="content-processing">
+              <option value="basic">Basic</option>
+              <option value="enhanced" selected>Enhanced</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button id="save-settings-button" class="primary-button">Save Settings</button>
+        <button id="reset-settings-button" class="secondary-button">Reset to Default</button>
+        <button id="cleanup-button" class="warning-button">Clean Output Files</button>
+      </div>
     </div>
   </div>
+
+  <div class="about-modal" id="about-modal">
+    <div class="about-content">
+      <div class="about-header">
+        <h2>About SBC Gina Search Engine</h2>
+        <button class="close-button" id="close-about-button">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="about-body">
+        <p>SBC Gina Search Engine is a powerful search tool designed to provide high-quality structured data search results across various document types.</p>
+        <h3>Features:</h3>
+        <ul>
+          <li>Advanced document processing with structure preservation</li>
+          <li>Schema.org structured data detection and extraction</li>
+          <li>Support for multiple document types (HTML, PDF, DOCX, XLSX, PPTX, CSV)</li>
+          <li>Multiple ranking algorithms (BM25, TF-IDF)</li>
+          <li>Faceted search for filtering results</li>
+          <li>Rich previews with schema data</li>
+          <li>CSV export with customizable headers</li>
+        </ul>
+        <h3>Version:</h3>
+        <p>1.0.0</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2025 SBC Gina Search Engine. All rights reserved.</p>
+  </footer>
 
   <script src="script.js"></script>
 </body>

@@ -257,19 +257,98 @@ The interface will:
 ## Getting Started
 
 1. Clone this repository
-2. Install dependencies with `npm install`
-3. Build the project with `npm run build`
-4. Start the server with `npm start`
+   ```bash
+   git clone https://github.com/Taiwan-Howard-Lee/CSV_search.git
+   cd CSV_search
+   ```
+
+2. Install dependencies
+   ```bash
+   npm install
+   ```
+
+3. Build the project
+   ```bash
+   npm run build
+   ```
+
+4. Start the server
+   ```bash
+   ./start.sh
+   ```
+   Or use the frontend server for testing:
+   ```bash
+   ./start-frontend.sh
+   ```
+
 5. Access the web interface at `http://localhost:3000`
 
 ## Usage
 
-1. Enter a search query
-2. Specify the desired CSV headers
-3. Set additional options (max results, include source, etc.)
-4. Click "Search" or "Deep Search"
+### Basic Search
+
+1. Enter a search query in the search box (e.g., "AI startups in healthcare")
+2. Add CSV headers by clicking "Advanced Search Options"
+   - Each header represents a column in the final CSV (e.g., "startup name", "founder", "funding")
+   - Add descriptions to help the search engine understand what to extract
+3. Set additional options:
+   - Maximum Results: Limit the number of results
+   - Search Depth: How deep to crawl (higher values take longer but find more)
+   - File Type: Filter by document type (HTML, PDF, etc.)
+   - Ranking Algorithm: Choose between BM25, TF-IDF, or combined
+   - Schema Type: Filter by schema.org type (Product, Event, etc.)
+4. Click "Simple Search" for basic results or "Deep Search" for more comprehensive results
 5. Wait for the search to complete
 6. Download the CSV file with the results
+
+### Advanced Features
+
+#### Schema.org Detection
+
+The search engine can detect and extract structured data using schema.org markup:
+
+1. Enable "Schema.org Detection" in the advanced options
+2. Filter results by schema type (Product, Event, Person, etc.)
+3. View schema data in the document viewer
+
+#### Enhanced HTML Parsing
+
+Improved HTML parsing preserves document structure:
+
+1. Enable "Enhanced HTML Parsing" in the advanced options
+2. Get better results from complex HTML documents
+3. Preserve headings, lists, tables, and other structural elements
+
+#### Document Viewer
+
+View detailed information about search results:
+
+1. Click on a search result title to open the document viewer
+2. Switch between Content, Metadata, and Schema Data tabs
+3. Explore the document's content and structure
+
+#### Faceted Search
+
+Filter search results by various criteria:
+
+1. Perform a search
+2. Use the checkboxes in the left sidebar to filter by document type or schema type
+3. Refine your results without performing a new search
+
+### Cleaning Up
+
+To remove intermediate files and keep only final results:
+
+1. Open Settings by clicking the "Settings" link in the top navigation
+2. Click "Clean Output Files" at the bottom of the settings panel
+3. Confirm the cleanup action
+
+Alternatively, run the cleanup script from the command line:
+```bash
+./comprehensive-cleanup.sh
+```
+
+This will remove all intermediate files and preserve only the final CSV results and Google search logs in the "results" directory.
 
 ## Contributing
 

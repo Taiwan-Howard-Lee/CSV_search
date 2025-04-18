@@ -1,0 +1,53 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "localhost"
+  },
+  "search": {
+    "defaultMaxResults": 10,
+    "defaultSearchDepth": 2,
+    "defaultRankingAlgorithm": "bm25",
+    "enableQueryExpansion": true,
+    "enableSchemaDetection": true,
+    "enableEnhancedParsing": true,
+    "userAgent": "SBC-Gina-Search-Engine/1.0"
+  },
+  "crawler": {
+    "politenessDelay": 1000,
+    "maxConcurrentRequests": 5,
+    "timeout": 30000,
+    "followRedirects": true,
+    "maxRedirects": 5,
+    "respectRobotsTxt": true,
+    "useSitemaps": true
+  },
+  "processor": {
+    "preserveHeadings": true,
+    "preserveLists": true,
+    "preserveTables": true,
+    "preserveLinks": true,
+    "preserveImages": false,
+    "segmentContent": true,
+    "maxSegmentLength": 1000
+  },
+  "extractor": {
+    "defaultHeaders": [
+      "name",
+      "description",
+      "url"
+    ],
+    "enableFuzzyMatching": true,
+    "confidenceThreshold": 0.7
+  },
+  "output": {
+    "csvDelimiter": ",",
+    "includeSourceUrls": true,
+    "outputDirectory": "results",
+    "cleanupIntermediateFiles": true
+  },
+  "logging": {
+    "level": "info",
+    "saveToFile": true,
+    "logDirectory": "logs"
+  }
+}

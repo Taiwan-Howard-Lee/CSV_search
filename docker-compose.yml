@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  sbc-gina:
+    build: .
+    container_name: sbc-gina
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config.json:/app/config.json
+      - ./results:/app/results
+      - ./logs:/app/logs
+    restart: unless-stopped
